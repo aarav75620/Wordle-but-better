@@ -1,0 +1,98 @@
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: users
+// Document ID: {uid}
+// Fields:
+//   - uid: string (required)
+//   - username: string (required)
+//   - stats: map (optional)
+//     - wins: number
+//     - losses: number
+//     - streak: number
+//     - avgGuesses: number
+//     - avgTime: number
+//     - totalGames: number
+//
+// Collection: rooms
+// Document ID: {roomId}
+// Fields:
+//   - roomId: string (required)
+//   - mode: string (required, enum: ['1v1', '2v2', '3v3', 'coop'])
+//   - difficulty: string (required, enum: ['easy', 'medium', 'hard'])
+//   - status: string (required, enum: ['waiting', 'playing', 'finished'])
+//   - players: list (required)
+//     - uid: string
+//     - username: string
+//     - progress: list
+//     - isReady: bool
+//     - finished: bool
+//     - guesses: number
+//     - time: number
+//   - targetWord: string (optional)
+//   - startTime: timestamp (optional)
+//   - winner: string (optional)
+//
+// ===============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "aarav.dontula3@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'username']) &&
+             data.uid is string &&
+             data.username is string && data.username.size() > 0 && data.username.size() < 30;
+    }
+
+    function isValidRoom(data) {
+      return data.keys().hasAll(['roomId', 'mode', 'difficulty', 'status', 'players']) &&
+             data.roomId is string &&
+             data.mode in ['1v1', '2v2', '3v3', 'coop'] &&
+             data.difficulty in ['easy', 'medium', 'hard'] &&
+             data.status in ['waiting', 'playing', 'finished'] &&
+             data.players is list;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if isOwner(userId) && isValidUser(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /rooms/{roomId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidRoom(request.resource.data);
+      allow update: if isAuthenticated() && isValidRoom(request.resource.data);
+      allow delete: if isAdmin();
+    }
+    
+    // Default deny
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}

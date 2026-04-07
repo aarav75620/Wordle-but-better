@@ -1,0 +1,5 @@
+{
+  "name": "Wordle Multiplayer",
+  "description": "A real-time multiplayer Wordle-style game with different modes and AI hints.",
+  "requestFramePermissions": []
+}
